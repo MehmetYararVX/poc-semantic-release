@@ -1,0 +1,53 @@
+name: Release with GitHub App
+
+on:
+  # push:
+  #   branches:
+  #     - develop
+
+jobs:
+  release-with-app:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Release bot
+        id: release_bot
+        uses: tibdex/github-app-token@v2
+        with:
+          app_id: ${{ secrets.RELEASE_BOT_ID }}
+          private_key: ${{ secrets.RELEASE_BOT_KEY }}
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false # This was added as an attempt to fix, but it may not be required
+          token: ${{ steps.release_bot.outputs.token }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify signatures
+        run: npm audit signatures
+
+      - name: Allow release-prepare script to execute
+        run: chmod +x ./release-prepare.sh
+
+      - name: Semantic Release
+        id: semantic
+        uses: codfish/semantic-release-action@v3
+        with:
+          branches: |
+            ['develop']
+        env:
+          GITHUB_TOKEN: ${{ steps.release_bot.outputs.token }}
+
+      - run: echo ${{ steps.semantic.outputs.release-version }}
+      - run: echo "$OUTPUTS"
+        env:
+          OUTPUTS: ${{ toJson(steps.semantic.outputs) }}
+      - run: |
+          echo $RELEASE_VERSION
+          echo $RELEASE_MAJOR
+          echo $RELEASE_MINOR
+          echo $RELEASE_PATCH

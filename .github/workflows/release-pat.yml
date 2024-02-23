@@ -1,0 +1,51 @@
+name: Release with GitHub PAT
+
+on:
+  push:
+    branches:
+      - develop
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-with-pat:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify signatures
+        run: npm audit signatures
+
+      - name: Semantic Release
+        id: semantic
+        uses: codfish/semantic-release-action@v3
+        with:
+          branches: |
+            ['develop']
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+      - run: echo "$OUTPUTS"
+        env:
+          OUTPUTS: ${{ toJson(steps.semantic.outputs) }}
+
+      - name: Update image tag
+        run: |
+          echo "Updating image tag to ${{ steps.semantic.outputs.release-version }}"
+          sed -i "s/tag: .*/tag: ${{ steps.semantic.outputs.release-version }}/" charts/values.yaml
